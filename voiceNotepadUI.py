@@ -144,7 +144,8 @@ class VoiceNotepad(QWidget):
     def start_recording(self):
         
         self.thread = QThread()
-        self.worker = ArabicSpeechWorker("C:/Users/sara/Desktop/voice_notepad/models/vosk-model-ar-mgb2-0.4")
+        model_path = os.path.join(os.path.dirname(__file__), "models", "vosk-model-ar-mgb2-0.4")
+        self.worker = ArabicSpeechWorker(model_path)
         self.worker.moveToThread(self.thread)
 
         # connect thread events
