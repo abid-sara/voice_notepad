@@ -13,7 +13,7 @@ This tool allows you to dictate in Arabic and see the text appear inside a style
   - Font, size, and style customization
   - Right-to-left writing support
 - Save your notes as `.docx`
-- Offline — no internet required
+- Offline (no internet required)
 
 ---
 
