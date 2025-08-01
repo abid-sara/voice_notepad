@@ -13,6 +13,7 @@ This tool allows you to dictate in Arabic and see the text appear inside a style
   - Font, size, and style customization
   - Right-to-left writing support
 - Save your notes as `.docx`
+- Auto saving your file
 - Offline (no internet required)
 
 ---
@@ -31,8 +32,8 @@ voice_notepad/
 ├── voiceNotepadUI.py
 ├── speechThread.py
 ├── customizePopup.py
-├── assets/              # Icons and images
-├── models/              # (YOU need to download this)
+├── assets/             
+├── models/              # (YOU need to create this, and put the downloaded model)
 └── README.md
 ```
 
