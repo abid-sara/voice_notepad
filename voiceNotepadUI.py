@@ -1,10 +1,11 @@
 import os
+import sys
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QTextEdit, QLabel, QSizePolicy, QFileDialog, QMessageBox, QDialog, QLineEdit
 )
 from PyQt5.QtGui import QIcon, QPixmap, QFont, QTextCharFormat
-from PyQt5.QtCore import Qt, QThread, QStandardPaths
+from PyQt5.QtCore import Qt, QThread, QStandardPaths, QTimer
 from speechThread import ArabicSpeechWorker
 from docx import Document
 from customizePopup import CustomizationPopup
@@ -20,6 +21,15 @@ class VoiceNotepad(QWidget):
         self.setStyleSheet("background-color: #f5f5f5;")
         self.thread = None
         self.worker = None
+
+        # auto save setup
+        self.autosave_filename = "Untitled document"
+        self.last_autosave_path = None 
+
+        self.autosave_timer = QTimer(self)
+        self.autosave_timer.setInterval(30000) #save every 30 seconds
+        self.autosave_timer.timeout.connect(self.autosave_file)
+        self.autosave_timer.start()
 
         self.init_ui()
 
@@ -102,7 +112,7 @@ class VoiceNotepad(QWidget):
             }
             """)
         self.filename_input.setAlignment(Qt.AlignCenter)
-
+        self.filename_input.setFocusPolicy(Qt.ClickFocus)
         layout.addWidget(self.filename_input, alignment = Qt.AlignCenter)
 
         #text area
@@ -124,6 +134,8 @@ class VoiceNotepad(QWidget):
 
         self.setLayout(layout)
 
+        QTimer.singleShot(0, self.text_edit.setFocus)  # set the focus on the text editor and not on the default first widget (title box)
+
 
     def set_button_states(self, recording_state:bool):
         "This method will make all buttons freeze during live record except the stop button"
@@ -139,12 +151,17 @@ class VoiceNotepad(QWidget):
         "Insert text at the current cursor position"
         self.text_edit.insertPlainText(" " + text)
         
+    def resource_path(self, relative_path):
+        """Get absolute path to resource, works for dev and for PyInstaller"""
+        if getattr(sys, 'frozen', False):
+            return os.path.join(sys._MEIPASS, relative_path)
+        return os.path.join(os.path.abspath("."), relative_path)
 
     #Button functionalities
     def start_recording(self):
         
         self.thread = QThread()
-        model_path = os.path.join(os.path.dirname(__file__), "models", "vosk-model-ar-mgb2-0.4")
+        model_path = self.resource_path(os.path.join("models", "vosk-model-ar-mgb2-0.4"))
         self.worker = ArabicSpeechWorker(model_path)
         self.worker.moveToThread(self.thread)
 
@@ -174,7 +191,7 @@ class VoiceNotepad(QWidget):
         filename = self.filename_input.text().strip()
 
         if not filename:
-            filename = "document.docx"
+            filename = "Untitled document.docx"
         
         selected_path = os.path.join(desktop_path, filename)
         
@@ -198,6 +215,41 @@ class VoiceNotepad(QWidget):
                 QMessageBox.information(self, "Saved", f"File saved to: {path}")
             except Exception as e:
                 QMessageBox.information(self,  "Error", f"Failed to save the file :{e}") 
+
+
+    def autosave_file(self):
+        text = self.text_edit.toPlainText().strip()
+        if not text:
+            return  # don't save
+        
+
+        current_title = self.filename_input.text().strip()
+        filename = current_title if current_title else self.autosave_filename
+
+        desktop_path = QStandardPaths.writableLocation(QStandardPaths.DesktopLocation)
+        autosave_path = os.path.join(desktop_path, f"{filename}.docx")
+
+        if current_title and self.autosave_filename == "Untitled document" and self.last_autosave_path: # if the file was not named, auto saved and currently named
+            new_path = os.path.join(desktop_path, f"{current_title}.docx")
+            try:
+                if os.path.exists(self.last_autosave_path):
+                    os.rename(self.last_autosave_path, new_path)
+                    self.status.setText(f"Autosave renamed to: {new_path}")
+                    self.last_autosave_path = new_path
+            except Exception as e:
+                print(f"Error renaming autosave: {e}")
+            
+            self.autosave_filename = current_title
+            self.last_autosave_path = new_path
+        
+        try:
+            document = Document()
+            document.add_paragraph(text)
+            document.save(autosave_path)
+            self.last_autosave_path = autosave_path
+            self.status.setText(f"Autosaved to: {autosave_path}")
+        except Exception as e:
+            print(f"Auto saving error occured: {e}")    
 
 
     def new_file(self):
@@ -244,6 +296,27 @@ class VoiceNotepad(QWidget):
             cursor.mergeCharFormat(format)
         else:
             self.text_edit.setCurrentCharFormat(format)
+
+
+    def closeEvent(self, event):
+        "Show the warning message when about to close the window"
+
+        current_text = self.text_edit.toPlainText().strip()
+        
+        if current_text:
+            reply = QMessageBox.question(
+                self,
+                "Confirm New File",
+                "⚠️ Unsaved text will be lost. Do you want to continue?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No   # default selected button
+            )
+
+            if reply == QMessageBox.No:
+                event.ignore()
+                return
+
+        event.accept()
 
 
 
